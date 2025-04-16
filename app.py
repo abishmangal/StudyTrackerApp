@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import hashlib
 from typing import Optional, Tuple, List, Dict
 
-# Database setup
 def init_db():
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
@@ -50,11 +49,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Password hashing
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Authentication functions
 def signup(username: str, password: str, email: str = None) -> bool:
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
@@ -74,12 +71,10 @@ def login(username: str, password: str) -> Optional[int]:
     c.execute("SELECT id, password FROM users WHERE username = ?", (username,))
     result = c.fetchone()
     conn.close()
-    
     if result and result[1] == hash_password(password):
-        return result[0]  # Return user_id
+        return result[0]  
     return None
 
-# Study session functions
 def start_study_session(user_id: int, title: str, description: str = None) -> int:
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
@@ -139,7 +134,6 @@ def get_total_study_time(user_id: int) -> float:
     conn.close()
     return total
 
-# Group functions
 def create_group(name: str, description: str, created_by: int) -> int:
     conn = sqlite3.connect('study_tracker.db')
     c = conn.cursor()
@@ -278,53 +272,79 @@ def main():
         all_groups_page()
 
 def login_page():
-    st.title("Study Tracker - Login")
-    
-    with st.form("login_form"):
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
-        
-        if submit:
-            user_id = login(username, password)
-            if user_id:
-                st.session_state.user_id = user_id
-                st.session_state.page = "timer"
-                st.rerun()
-            else:
-                st.error("Invalid username or password")
-    
-    if st.button("Don't have an account? Sign up"):
-        st.session_state.page = "signup"
-        st.rerun()
+    col1, col2, col3 = st.columns([1, 2, 1])  # Corrected column distribution
+
+    with col2:
+        st.title("Study Tracker Login")
+
+        with st.form("login_form"):
+            st.markdown("### 👤 Username")
+            username = st.text_input(" ", placeholder="Enter your username", key="login_username")
+
+            st.markdown(" ")  
+
+            st.markdown("### 🔑 Password")
+            password = st.text_input(" ", type="password", placeholder="••••••••", key="login_password")
+            st.markdown("")
+            st.markdown("")
+            st.markdown("")
+            if st.form_submit_button("🚀 Login", use_container_width=True):
+                if not username or not password:
+                    st.error("Username and password are required!")
+                else:
+                    user_id = login(username, password)
+                    if user_id:
+                        st.session_state.user_id = user_id
+                        st.session_state.page = "timer"
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials")
+
+        st.markdown("")  
+
+        st.button("Sign Up", on_click=lambda: setattr(st.session_state, 'page', 'signup'))
+
 
 def signup_page():
-    st.title("Study Tracker - Sign Up")
-    
-    with st.form("signup_form"):
-        username = st.text_input("Username")
-        email = st.text_input("Email (optional)")
-        password = st.text_input("Password", type="password")
-        confirm_password = st.text_input("Confirm Password", type="password")
-        submit = st.form_submit_button("Sign Up")
-        
-        if submit:
-            if password != confirm_password:
-                st.error("Passwords don't match")
-            else:
-                if signup(username, password, email):
-                    st.success("Account created successfully! Please login.")
+    col1, col2, col3 = st.columns([1, 2, 1])  # Center the form
+
+    with col2:
+        st.title("Create Account")
+
+        with st.form("signup_form"):
+            st.markdown("### 👤 Username")
+            username = st.text_input(" ", placeholder="Choose a username", key="username",label_visibility="hidden")
+
+            st.markdown("### 📧 Email (optional)")
+            email = st.text_input(" ", placeholder="user@example.com", key="email",label_visibility="hidden")
+
+            st.markdown("### 🔑 Password")
+            password = st.text_input(" ", type="password", placeholder="••••••••", key="password",label_visibility="hidden")
+
+            st.markdown("### ✅ Confirm Password")
+            confirm = st.text_input(" ", type="password", placeholder="••••••••", key="confirm",label_visibility="hidden")
+            st.markdown("")
+            st.markdown("")
+            if st.form_submit_button("🚀 Create Account", use_container_width=True):
+                if not username or not password:
+                    st.error("Username and password are required!")
+                elif password != confirm:
+                    st.error("Passwords don't match!")
+                elif signup(username, password, email):
+                    st.success("Account created! Please login")
                     st.session_state.page = "login"
                     st.rerun()
                 else:
                     st.error("Username already exists")
-    
-    if st.button("Back to Login"):
-        st.session_state.page = "login"
-        st.rerun()
+
+        st.button("Back to Login", on_click=lambda: setattr(st.session_state, 'page', 'login'))
+
+import time
+from datetime import datetime, timedelta
+import streamlit as st
 
 def timer_page():
-    st.title("Study Timer")
+    st.title("⏳Study Timer")
     
     if st.session_state.current_session:
         session = get_study_sessions(st.session_state.user_id, limit=1)[0]
@@ -383,123 +403,254 @@ def timer_page():
     else:
         st.write("No study sessions yet. Start one above!")
 
+
 def history_page():
-    st.title("Study History")
+    st.title("📚 Study History")
     
-    # Stats
-    total_time = get_total_study_time(st.session_state.user_id)
-    if total_time:
-        st.subheader(f"Total Study Time: {str(timedelta(seconds=int(total_time)))}")
+    # 1. Get all sessions (unfiltered)
+    all_sessions = get_study_sessions(st.session_state.user_id)
+    
+    # 2. Date Filter (Sidebar)
+    with st.sidebar:
+        st.header("🔍 Filters")
+        date_filter = st.selectbox(
+            "Time Period",
+            ["All Time", "Today", "Last 7 Days", "Last 30 Days", "Custom Range"],
+            key="date_filter"
+        )
+        
+        custom_start = None
+        custom_end = None
+        if date_filter == "Custom Range":
+            col1, col2 = st.columns(2)
+            custom_start = col1.date_input("Start Date", value=datetime.now() - timedelta(days=30))
+            custom_end = col2.date_input("End Date", value=datetime.now())
+    
+    # 3. Apply Filters
+    filtered_sessions = []
+    now = datetime.now()
+    
+    for session in all_sessions:
+        session_time = datetime.strptime(session['start_time'], "%Y-%m-%d %H:%M:%S.%f")
+        
+        if date_filter == "All Time":
+            filtered_sessions.append(session)
+        elif date_filter == "Today" and session_time.date() == now.date():
+            filtered_sessions.append(session)
+        elif date_filter == "Last 7 Days" and session_time >= (now - timedelta(days=7)):
+            filtered_sessions.append(session)
+        elif date_filter == "Last 30 Days" and session_time >= (now - timedelta(days=30)):
+            filtered_sessions.append(session)
+        elif date_filter == "Custom Range" and custom_start and custom_end:
+            if custom_start <= session_time.date() <= custom_end:
+                filtered_sessions.append(session)
+    
+    # 4. Calculate Filtered Total Time (including seconds)
+    total_seconds = sum(session['duration'] for session in filtered_sessions if session['duration'])
+    total_time_str = str(timedelta(seconds=int(total_seconds)))  # Formats as "H:MM:SS"
+    
+    # 5. Display Stats Header
+    if total_seconds > 0:
+        st.subheader(f"⏳ Total Study Time: **{total_time_str}**")
+        st.caption(f"Showing {len(filtered_sessions)} sessions")
     else:
-        st.subheader("No study sessions recorded yet")
+        st.warning("No study sessions found for selected filters")
     
-    # Filter options
-    col1, col2 = st.columns(2)
-    with col1:
-        date_range = st.selectbox("Filter by", ["All time", "Last 7 days", "Last 30 days"])
-    with col2:
-        sort_by = st.selectbox("Sort by", ["Newest first", "Oldest first", "Longest first", "Shortest first"])
+    # 6. Display Sessions in Cards (with seconds)
+    if filtered_sessions:
+        for session in filtered_sessions:
+            with st.container(border=True):
+                cols = st.columns([4, 1])
+                
+                # Left Column: Session Info
+                with cols[0]:
+                    st.markdown(f"### {session['title']}")
+                    if session['description']:
+                        st.caption(f"📝 {session['description']}")
+                    
+                    start_time = datetime.strptime(session['start_time'], "%Y-%m-%d %H:%M:%S.%f")
+                    date_str = start_time.strftime("%a, %b %d %Y")
+                    time_str = start_time.strftime("%I:%M %p")
+                    st.caption(f"🗓️ {date_str} | 🕒 {time_str}")
+                
+                # Right Column: Duration (with seconds)
+                with cols[1]:
+                    if session['duration']:
+                        duration_str = str(timedelta(seconds=int(session['duration'])))
+                        st.metric(
+                            "Duration", 
+                            f"{duration_str}",
+                            help="HH:MM:SS format"
+                        )
+                    else:
+                        st.warning("Incomplete")
     
-    # Get sessions with filters
-    sessions = get_study_sessions(st.session_state.user_id)
-    
-    # Apply date filter
-    if date_range != "All time":
-        cutoff = datetime.now() - timedelta(days=7 if date_range == "Last 7 days" else 30)
-        sessions = [s for s in sessions if datetime.strptime(s['start_time'], "%Y-%m-%d %H:%M:%S.%f") >= cutoff]
-    
-    # Apply sort
-    if sort_by == "Oldest first":
-        sessions = sorted(sessions, key=lambda x: x['start_time'])
-    elif sort_by == "Longest first":
-        sessions = sorted(sessions, key=lambda x: x['duration'] or 0, reverse=True)
-    elif sort_by == "Shortest first":
-        sessions = sorted(sessions, key=lambda x: x['duration'] or float('inf'))
-    else:  # Newest first (default)
-        sessions = sorted(sessions, key=lambda x: x['start_time'], reverse=True)
-    
-    # Display sessions
-    if sessions:
-        for session in sessions:
-            col1, col2 = st.columns([3, 1])
-            col1.write(f"**{session['title']}**")
-            col1.write(f"*{session['start_time']}*")
-            if session['description']:
-                col1.write(session['description'])
-            
-            if session['duration']:
-                duration = str(timedelta(seconds=int(session['duration'])))
-                col2.write(f"**{duration}**")
-            else:
-                col2.write("In progress")
-            st.divider()
+    # 7. Empty State
     else:
-        st.write("No study sessions found with these filters.")
+        st.info("No sessions match your current filters. Try adjusting the date range.")
 
 def my_groups_page():
-    st.title("My Study Groups")
+    st.title("👥 My Study Groups")
     
-    # Create new group
-    with st.expander("Create New Group"):
-        with st.form("create_group_form"):
-            name = st.text_input("Group Name")
-            description = st.text_area("Description")
-            submit = st.form_submit_button("Create Group")
-            
-            if submit and name:
-                group_id = create_group(name, description, st.session_state.user_id)
-                st.success(f"Group '{name}' created!")
-                time.sleep(1)
+    # Search functionality
+    search_query = st.text_input("🔍 Search my groups", placeholder="Find a group...")
+    
+    # Create group expander
+    with st.expander("➕ Create New Group", expanded=False):
+        with st.form("create_group"):
+            name = st.text_input("Group name")
+            desc = st.text_area("Description")
+            if st.form_submit_button("Create", use_container_width=True):
+                create_group(name, desc, st.session_state.user_id)
                 st.rerun()
     
-    # User's groups
-    groups = get_user_groups(st.session_state.user_id)
+    # Display groups with filtering
+    groups = [g for g in get_user_groups(st.session_state.user_id) 
+              if search_query.lower() in g['name'].lower()]
+    
     if groups:
         for group in groups:
-            col1, col2 = st.columns([4, 1])
-            col1.subheader(group['name'])
-            col1.write(group['description'])
-            col1.write(f"Created by: {group['creator_name']}")
-            
-            if col2.button("Leave", key=f"leave_{group['id']}"):
-                leave_group(group['id'], st.session_state.user_id)
-                st.success(f"Left group '{group['name']}'")
-                time.sleep(1)
-                st.rerun()
-            
-            # Group stats
-            st.subheader("Member Stats")
-            members = get_group_members_stats(group['id'])
-            for i, member in enumerate(members, 1):
-                time_str = str(timedelta(seconds=int(member['total_time'])))
-                st.write(f"{i}. {member['username']}: {time_str}")
-            
-            st.divider()
+            with st.container(border=True):
+                cols = st.columns([4,1])
+                cols[0].subheader(group['name'])
+                cols[0].caption(f"👤 Created by: {group['creator_name']}")
+                if group['description']:
+                    cols[0].write(group['description'])
+                
+                if cols[1].button("Leave", key=f"leave_{group['id']}"):
+                    leave_group(group['id'], st.session_state.user_id)
+                    st.rerun()
+                
+                # Member stats
+                with st.expander(f"👥 Members ({len(get_group_members_stats(group['id']))})"):
+                    for member in get_group_members_stats(group['id']):
+                        st.write(f"- {member['username']}: {timedelta(seconds=member['total_time'])}")
     else:
-        st.write("You haven't joined any groups yet. Join one from the All Groups page!")
+        st.info("No groups found" if search_query else "You haven't joined any groups yet")
 
 def all_groups_page():
-    st.title("All Study Groups")
+    st.title("🌐 All Study Groups")
+    
+    # Search and filter
+    col1, col2 = st.columns([3,1])
+    search_query = col1.text_input("🔍 Search all groups", placeholder="Find a group to join...")
+    sort_by = col2.selectbox("Sort by", ["Newest", "Most Members"])
     
     groups = get_all_groups(st.session_state.user_id)
+    
+    # Apply search and sort
+    if search_query:
+        groups = [g for g in groups if search_query.lower() in g['name'].lower()]
+    
+    if sort_by == "Most Members":
+        groups.sort(key=lambda g: len(get_group_members_stats(g['id'])), reverse=True)
+    
+    # Display groups
     if groups:
         for group in groups:
-            col1, col2 = st.columns([4, 1])
-            col1.subheader(group['name'])
-            col1.write(group['description'])
-            col1.write(f"Created by: {group['creator_name']}")
-            
-            if col2.button("Join", key=f"join_{group['id']}"):
-                if join_group(group['id'], st.session_state.user_id):
-                    st.success(f"Joined group '{group['name']}'")
-                    time.sleep(1)
+            with st.container(border=True):
+                cols = st.columns([4,1])
+                cols[0].subheader(group['name'])
+                cols[0].caption(f"👤 Created by: {group['creator_name']}")
+                if group['description']:
+                    cols[0].write(group['description'])
+                
+                members = get_group_members_stats(group['id'])
+                cols[0].caption(f"👥 {len(members)} members")
+                
+                if cols[1].button("Join", key=f"join_{group['id']}"):
+                    join_group(group['id'], st.session_state.user_id)
                     st.rerun()
-                else:
-                    st.error("Failed to join group")
-            
-            st.divider()
     else:
-        st.write("No groups available to join or you've already joined all groups.")
+        st.info("No groups available" if search_query else "No groups found to join")
+
+def history_page():
+    st.title("📚 Study History")
+    
+    # 1. Get all sessions (unfiltered)
+    all_sessions = get_study_sessions(st.session_state.user_id)
+    
+    # 2. Date Filter (Sidebar)
+    with st.sidebar:
+        st.header("🔍 Filters")
+        date_filter = st.selectbox(
+            "Time Period",
+            ["All Time", "Today", "Last 7 Days", "Last 30 Days", "Custom Range"],
+            key="date_filter"
+        )
+        
+        custom_start = None
+        custom_end = None
+        if date_filter == "Custom Range":
+            col1, col2 = st.columns(2)
+            custom_start = col1.date_input("Start Date", value=datetime.now() - timedelta(days=30))
+            custom_end = col2.date_input("End Date", value=datetime.now())
+    
+    # 3. Apply Filters
+    filtered_sessions = []
+    now = datetime.now()
+    
+    for session in all_sessions:
+        session_time = datetime.strptime(session['start_time'], "%Y-%m-%d %H:%M:%S.%f")
+        
+        if date_filter == "All Time":
+            filtered_sessions.append(session)
+        elif date_filter == "Today" and session_time.date() == now.date():
+            filtered_sessions.append(session)
+        elif date_filter == "Last 7 Days" and session_time >= (now - timedelta(days=7)):
+            filtered_sessions.append(session)
+        elif date_filter == "Last 30 Days" and session_time >= (now - timedelta(days=30)):
+            filtered_sessions.append(session)
+        elif date_filter == "Custom Range" and custom_start and custom_end:
+            if custom_start <= session_time.date() <= custom_end:
+                filtered_sessions.append(session)
+    
+    # 4. Calculate Filtered Total Time
+    total_seconds = sum(session['duration'] for session in filtered_sessions if session['duration'])
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    
+    # 5. Display Stats Header
+    if total_seconds > 0:
+        st.subheader(f"⏳ Total Filtered Study Time: **{hours}h {minutes}m**")
+        st.caption(f"Showing {len(filtered_sessions)} sessions")
+    else:
+        st.warning("No study sessions found for selected filters")
+    
+    # 6. Display Sessions in Cards
+    if filtered_sessions:
+        for session in filtered_sessions:
+            with st.container(border=True):
+                cols = st.columns([4, 1])
+                
+                # Left Column: Session Info
+                with cols[0]:
+                    st.markdown(f"### {session['title']}")
+                    if session['description']:
+                        st.caption(f"📝 {session['description']}")
+                    
+                    start_time = datetime.strptime(session['start_time'], "%Y-%m-%d %H:%M:%S.%f")
+                    date_str = start_time.strftime("%a, %b %d %Y")
+                    time_str = start_time.strftime("%I:%M %p")
+                    st.caption(f"🗓️ {date_str} | 🕒 {time_str}")
+                
+                # Right Column: Duration
+                with cols[1]:
+                    if session['duration']:
+                        dur_h, rem = divmod(session['duration'], 3600)
+                        dur_m, _ = divmod(rem, 60)
+                        st.metric(
+                            "Duration", 
+                            f"{int(dur_h)}h {int(dur_m)}m",
+                            help="Session length"
+                        )
+                    else:
+                        st.warning("Incomplete")
+    
+    # 7. Empty State
+    else:
+        st.info("No sessions match your current filters. Try adjusting the date range.")
+
 
 if __name__ == "__main__":
     main()
